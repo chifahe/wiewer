@@ -1,4 +1,6 @@
-﻿#include "framework.h"
+﻿//HACK: It failed while releasing.
+
+#include "framework.h"
 #include "wiewer.h"
 #include <windows.h>
 #include <strsafe.h>
@@ -16,11 +18,24 @@ using namespace Microsoft::WRL;
 
 // Global variables
 
+PWSTR ChangeWinPathToURL(PWSTR path) {
+    // I wanted to code as while(wcschr(path, L'\\')), but Visual Studio kept warning me, so...
+    // HACK: This may lead to a infinite loop.
+    while (true) {
+        wchar_t* temp = wcschr(path, L'\\');
+        if (temp !=  NULL) {
+            *temp= L'/';
+        }
+        else
+        {
+			break;
+        }
+    }
+    return path;
+}
+
 // The main window class name.
 static TCHAR szWindowClass[] = _T("DesktopApp");
-
-// The string that appears in the application's title bar.
-static TCHAR szTitle[] = _T("WebView");
 
 HINSTANCE hInst;
 
@@ -33,10 +48,10 @@ static wil::com_ptr<ICoreWebView2Controller> webviewController;
 // Pointer to WebView window
 static wil::com_ptr<ICoreWebView2> webviewWindow;
 
-int CALLBACK WinMain(
+int CALLBACK wWinMain(
     _In_ HINSTANCE hInstance,
-    _In_ HINSTANCE hPrevInstance,
-    _In_ LPSTR     lpCmdLine,
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_ PWSTR     lpCmdLine,
     _In_ int       nCmdShow
 )
 {
@@ -66,6 +81,16 @@ int CALLBACK WinMain(
     // Store instance handle in our global variable
     hInst = hInstance;
 
+    // Set title as file name.
+    const LPWSTR szTitle = wcsrchr(lpCmdLine, L'\\') + 1;
+    // HACK: Is this unsafe?
+    
+    // A way to concatenate const wchar_t and PWSTR.
+    std::wstring url_file_path_w(ChangeWinPathToURL(lpCmdLine));
+    std::wstring out_w = L"file:///" + url_file_path_w;
+	PWSTR url_file_path = const_cast<PWSTR>(out_w.c_str());     // This is file path that can be used in url.
+    // HACK: I think it can be done by wcschr_s, but I don't know how to use it properly.
+
     // The parameters to CreateWindow explained:
     // szWindowClass: the name of the application
     // szTitle: the text that appears in the title bar
@@ -88,6 +113,8 @@ int CALLBACK WinMain(
         NULL
     );
 
+    //TODO: Make window's initial size fit the file.
+
     if (!hWnd)
     {
         MessageBox(NULL,
@@ -103,17 +130,17 @@ int CALLBACK WinMain(
     // nCmdShow: the fourth parameter from WinMain
     ShowWindow(hWnd,
         nCmdShow);
-    UpdateWindow(hWnd);
+	UpdateWindow(hWnd);
 
     // <-- WebView2 sample code starts here -->
 
     HRESULT res = CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+            [hWnd,url_file_path](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
                 //MessageBoxA(hWnd, "createView", "", NULL);
                 // Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
                 env->CreateCoreWebView2Controller(hWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                    [hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+                    [hWnd,url_file_path](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
                         if (controller != nullptr) {
                             webviewController = controller;
                             webviewController->get_CoreWebView2(&webviewWindow);
@@ -132,10 +159,10 @@ int CALLBACK WinMain(
                         GetClientRect(hWnd, &bounds);
                         webviewController->put_Bounds(bounds);
 
-                        // Schedule an async task to navigate to Bing
-
-                        HRESULT res = webviewWindow->Navigate(L"https:\\www.baidu.com");
+                        // Schedule an async task to navigate
+						HRESULT res = webviewWindow->Navigate(url_file_path);
                         std::string sres = std::to_string(res).c_str();
+
                         // Step 4 - Navigation events
 
                         // Step 5 - Scripting
