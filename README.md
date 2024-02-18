@@ -1,12 +1,20 @@
-# wiewer
+# wiewer：简单小巧的媒体查看器
 
-wiewer是一款基于WebView2构建的媒体查看器。
+**注意：该项目还在开发中，暂时不能正常使用，请等待第一个发行版。**
 
-原理是调用WebView2，通过file协议，利用Egde浏览器来打开文件。
+**Warning: This project is under development, please wait for the first release.**
 
-优点在于：
+---
 
-1. 可执行文件体积小。
-2. 支持文件类型多，随着Edge更新还能支持更多文件。
+wiewer是一款简单小巧的媒体查看器，适合那些不想让系统变得过于臃肿的用户。
 
-## 更新日志
+它本质上是通过Edge浏览器打开文件，因此能在支持大部分类型的文件的同时保持体积较小。
+
+优点：可执行文件的体积较小。
+
+1. 支持大部分常用的媒体文件。
+3. （如果允许Edge在后台运行）启动速度较快。
+
+缺点：
+
+1. 仅支持安装了WebView2 Runtime的操作系统（如Windows10、Windows11）。
