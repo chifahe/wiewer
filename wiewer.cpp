@@ -1,4 +1,4 @@
-﻿//HACK: It failed while releasing.
+﻿// HACK: I found that I changed value of lpCmdLine, it's bad and I have to fix it.
 
 #include "framework.h"
 #include "wiewer.h"
@@ -17,22 +17,6 @@
 using namespace Microsoft::WRL;
 
 // Global variables
-
-PWSTR ChangeWinPathToURL(PWSTR path) {
-    // I wanted to code as while(wcschr(path, L'\\')), but Visual Studio kept warning me, so...
-    // HACK: This may lead to a infinite loop.
-    while (true) {
-        wchar_t* temp = wcschr(path, L'\\');
-        if (temp !=  NULL) {
-            *temp= L'/';
-        }
-        else
-        {
-			break;
-        }
-    }
-    return path;
-}
 
 // The main window class name.
 static TCHAR szWindowClass[] = _T("DesktopApp");
@@ -81,15 +65,20 @@ int CALLBACK wWinMain(
     // Store instance handle in our global variable
     hInst = hInstance;
 
-    // Set title as file name.
-    const LPWSTR szTitle = wcsrchr(lpCmdLine, L'\\') + 1;
-    // HACK: Is this unsafe?
-    
-    // A way to concatenate const wchar_t and PWSTR.
-    std::wstring url_file_path_w(ChangeWinPathToURL(lpCmdLine));
-    std::wstring out_w = L"file:///" + url_file_path_w;
-	PWSTR url_file_path = const_cast<PWSTR>(out_w.c_str());     // This is file path that can be used in url.
-    // HACK: I think it can be done by wcschr_s, but I don't know how to use it properly.
+    // TODO: Add a separate wchar with the same value as lpCmdLine.
+
+	TCHAR* szTitle; // The text that appears in the title bar.
+    // If lpCmdLine is empty, a memory read error will occur during CreateWindow.
+	if (wcslen(lpCmdLine) != 0) {
+        // Set title as file name.
+        szTitle = wcsrchr(lpCmdLine, L'\\') + 1;    // This is a read operation, will not change lpCmdLine.
+        // HACK: Is this unsafe?
+    }
+    else
+    {
+        // The default text that appears in the title bar.
+        szTitle = (LPWSTR)_T("wiewer - A simple media viewer based on WebView2");
+    }
 
     // The parameters to CreateWindow explained:
     // szWindowClass: the name of the application
@@ -113,7 +102,7 @@ int CALLBACK wWinMain(
         NULL
     );
 
-    //TODO: Make window's initial size fit the file.
+    // TODO: Make window's initial size fit the file.
 
     if (!hWnd)
     {
@@ -136,11 +125,11 @@ int CALLBACK wWinMain(
 
     HRESULT res = CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [hWnd,url_file_path](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+            [hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
                 //MessageBoxA(hWnd, "createView", "", NULL);
                 // Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
                 env->CreateCoreWebView2Controller(hWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                    [hWnd,url_file_path](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+                    [hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
                         if (controller != nullptr) {
                             webviewController = controller;
                             webviewController->get_CoreWebView2(&webviewWindow);
@@ -160,7 +149,7 @@ int CALLBACK wWinMain(
                         webviewController->put_Bounds(bounds);
 
                         // Schedule an async task to navigate
-						HRESULT res = webviewWindow->Navigate(url_file_path);
+						HRESULT res = webviewWindow->Navigate(L"");
                         std::string sres = std::to_string(res).c_str();
 
                         // Step 4 - Navigation events
