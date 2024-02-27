@@ -1,6 +1,4 @@
-﻿#include "framework.h"
-#include "wiewer.h"
-#include <windows.h>
+﻿#include <windows.h>
 #include <strsafe.h>
 #include <io.h>
 #include <stdlib.h>
@@ -11,13 +9,31 @@
 #include <AccCtrl.h>
 #include <AclAPI.h>
 
+#include "framework.h"
+#include "wiewer.h"
 #include "webView2.h"
+
+#define VIDEO_MP4 0
+#define VIDEO_OGG 1
+#define VIDEO_WEBM 2
+
+#define AUDIO_MP3 10
+#define AUDIO_AAC 11
+#define AUDIO_OGG 12
+#define AUDIO_WAV 13
+
+#define IMAGE_JPG 20
+#define IMAGE_PNG 21
+#define IMAGE_WEBP 22
+#define IMAGE_GIF 23
+#define IMAGE_ICO 24
+
 using namespace Microsoft::WRL;
 
 // Global variables
 
 // The main window class name.
-static TCHAR szWindowClass[] = _T("DesktopApp");
+static TCHAR szWindowClass[] = _T("wiewer");
 
 HINSTANCE hInst;
 
@@ -64,33 +80,37 @@ int CALLBACK wWinMain(
 	// Store instance handle in our global variable
 	hInst = hInstance;
 
-	TCHAR* szTitle;									// The text that appears in the title bar.
-	wchar_t url_file_path[268] = TEXT("file:///");	// File path used in WebView2.
+	// TODO: Get type of file by file header.
 
-	// If lpCmdLine is empty, a memory read error will occur during CreateWindow.
+	TCHAR* szTitle;									// The text that appears in the title bar.
+	TCHAR file_path_url[268] = TEXT("file:///");	// File path used in WebView2.
+
+	unsigned short int window_width;	// initial size of window
+	unsigned short int window_height;	// initial size of window
+
+	// If lpCmdLine is empty, a memory read error will occur in CreateWindow.
 	if (wcslen(lpCmdLine) != 0) {
 		// Set title as file name.
-		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;	// This is a read operation, will not change lpCmdLine.
+		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;	// HACK: If there is no '\\'?
 
-		wcscat_s(url_file_path, lpCmdLine);
-		while (true)
-		{
-			int p = 0;
-			if (url_file_path[p] == '\0') {
-				break;
-				if (url_file_path[p] == '\\') {
-					url_file_path[p] = '/';
-				}
-			}
-		}
+		// The format of file_path_url is "file:///C:\\xxx.jpg".
+		wcscat_s(file_path_url, lpCmdLine);			// I found it's OK using '\\' in url.
+
+		// TODO: Make window's initial size fit the file.
+		window_width = 800;
+		window_height = 600;
 	}
 	else
 	{
 		// The default text that appears in the title bar.
-		szTitle = (LPWSTR)_T("wiewer - A simple media viewer based on WebView2");
+		szTitle = (LPWSTR)_T("wiewer");
 
-		// It will show an empty page.
-		url_file_path[0] = '\0';	// HACK: Will this remain in memory?
+		// Make it empty.
+		file_path_url[0] = '\0';
+
+		// default size
+		window_width = 400;
+		window_height = 300;
 	}
 
 	// The parameters to CreateWindow explained:
@@ -98,7 +118,7 @@ int CALLBACK wWinMain(
 	// szTitle: the text that appears in the title bar
 	// WS_OVERLAPPEDWINDOW: the type of window to create
 	// CW_USEDEFAULT, CW_USEDEFAULT: initial position (x, y)
-	// 500, 100: initial size (width, length)
+	// window_width, window_height: initial size (width, length)
 	// NULL: the parent of this window
 	// NULL: this application does not have a menu bar
 	// hInstance: the first parameter from WinMain
@@ -108,14 +128,12 @@ int CALLBACK wWinMain(
 		szTitle,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
-		680, 600,
+		window_width, window_height,
 		NULL,
 		NULL,
 		hInstance,
 		NULL
 	);
-
-	// TODO: Make window's initial size fit the file.
 
 	if (!hWnd)
 	{
@@ -138,11 +156,11 @@ int CALLBACK wWinMain(
 
 	HRESULT res = CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
 		Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-			[url_file_path,hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+			[file_path_url, hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
 				//MessageBoxA(hWnd, "createView", "", NULL);
 				// Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
 				env->CreateCoreWebView2Controller(hWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-					[url_file_path,hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+					[file_path_url, hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
 						if (controller != nullptr) {
 							webviewController = controller;
 							webviewController->get_CoreWebView2(&webviewWindow);
@@ -162,7 +180,14 @@ int CALLBACK wWinMain(
 						webviewController->put_Bounds(bounds);
 
 						// Schedule an async task to navigate
-						HRESULT res = webviewWindow->Navigate(url_file_path);
+						HRESULT res;
+						if (file_path_url[0] == '\0') {
+							res = webviewWindow->NavigateToString(L"<html><head><style>*{margin:0;padding:0;text-align:center;user-select:none;}body{position:absolute;height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}</style></head><body><h1>Welcome to wiewer!</h1><br><font size='4'>wiewer is a simple media viewer based on WebView2.</font></body></html>");	// default page
+						}
+						else
+						{
+							res = webviewWindow->Navigate(file_path_url);
+						}
 						std::string sres = std::to_string(res).c_str();
 
 						// Step 4 - Navigation events
