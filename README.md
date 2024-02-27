@@ -6,7 +6,7 @@
 
 ---
 
-[Read this in English?]()
+[Read this in English?](https://github.com/chifahe/wiewer/blob/master/README.en_us.md)
 
 wiewer是一款简单小巧的媒体查看器，适合那些不想让系统变得过于臃肿的用户。
 
