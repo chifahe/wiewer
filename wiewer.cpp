@@ -13,27 +13,30 @@
 #include "wiewer.h"
 #include "webView2.h"
 
-#define VIDEO_MP4 0
-#define VIDEO_OGG 1
-#define VIDEO_WEBM 2
+#define VIDEO_MP4 1
+#define VIDEO_OGG 2
+#define VIDEO_WEBM 3
 
-#define AUDIO_MP3 10
-#define AUDIO_AAC 11
-#define AUDIO_OGG 12
-#define AUDIO_WAV 13
+#define AUDIO_MP3 11
+#define AUDIO_AAC 12
+#define AUDIO_OGG 13
+#define AUDIO_WAV 14
 
-#define IMAGE_JPG 20
-#define IMAGE_PNG 21
-#define IMAGE_WEBP 22
-#define IMAGE_GIF 23
-#define IMAGE_ICO 24
+#define IMAGE_JPG 21
+#define IMAGE_PNG 22
+#define IMAGE_WEBP 23
+#define IMAGE_GIF 24
+#define IMAGE_ICO 25
 
 using namespace Microsoft::WRL;
 
 // Global variables
 
-// The main window class name.
+// The name of the application
 static TCHAR szWindowClass[] = _T("wiewer");
+
+// The default text that appears in the title bar.
+static TCHAR szTitle_default[] = _T("wiewer");
 
 HINSTANCE hInst;
 
@@ -80,33 +83,39 @@ int CALLBACK wWinMain(
 	// Store instance handle in our global variable
 	hInst = hInstance;
 
-	// TODO: Get type of file by file header.
-
 	TCHAR* szTitle;									// The text that appears in the title bar.
 	TCHAR file_path_url[268] = TEXT("file:///");	// File path used in WebView2.
 
-	unsigned short int window_width;	// initial size of window
-	unsigned short int window_height;	// initial size of window
+	// Initial size of window
+	unsigned short int window_width;
+	unsigned short int window_height;
 
-	// If lpCmdLine is empty, a memory read error will occur in CreateWindow.
-	if (wcslen(lpCmdLine) != 0) {
-		// Set title as file name.
-		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;	// HACK: If there is no '\\'?
+	// TODO: Get type of file by file header.
+	unsigned short int file_type_num = 0;
 
-		// The format of file_path_url is "file:///C:\\xxx.jpg".
-		wcscat_s(file_path_url, lpCmdLine);			// I found it's OK using '\\' in url.
+	bool is_lpCmdLine_available = (wcslen(lpCmdLine) != 0 && _waccess_s(lpCmdLine, 4) != -1 && wcsrchr(lpCmdLine, L'\\') != NULL) ? true : false;	// Check if lpCmdLine is an available file path.
+	
+	if (is_lpCmdLine_available) {
+		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;	// Set title as file name.
+
+		// XXX: Using '\\' in url seems to be OK.
+		wcscat_s(file_path_url, lpCmdLine);			// The format of file_path_url is "file:///C:\\xxx.jpg".
 
 		// TODO: Make window's initial size fit the file.
-		window_width = 800;
-		window_height = 600;
+
+		// NOTE: window_height includes height of title bar.
+		/*
+		* Standard title bar height is 32px.
+		* It may be affected by system scaling.
+		* My scaling is 150%, so my height is 21.3px.
+		*/
+		window_width = 300;
+		window_height = 300 + 21.3;
 	}
 	else
 	{
-		// The default text that appears in the title bar.
-		szTitle = (LPWSTR)_T("wiewer");
-
-		// Make it empty.
-		file_path_url[0] = '\0';
+		szTitle = szTitle_default;
+		file_path_url[0] = L'\0';	// Clear array.
 
 		// default size
 		window_width = 400;
@@ -181,7 +190,7 @@ int CALLBACK wWinMain(
 
 						// Schedule an async task to navigate
 						HRESULT res;
-						if (file_path_url[0] == '\0') {
+						if (file_path_url[0] == L'\0') {
 							res = webviewWindow->NavigateToString(L"<html><head><style>*{margin:0;padding:0;text-align:center;user-select:none;}body{position:absolute;height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}</style></head><body><h1>Welcome to wiewer!</h1><br><font size='4'>wiewer is a simple media viewer based on WebView2.</font></body></html>");	// default page
 						}
 						else
