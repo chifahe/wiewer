@@ -1,4 +1,6 @@
-﻿#include <windows.h>
+﻿// XXX: This file is based on Microsoft Webview2 Demo, codes and comments need to be standardized later.
+
+#include <windows.h>
 #include <strsafe.h>
 #include <io.h>
 #include <stdlib.h>
@@ -13,30 +15,14 @@
 #include "wiewer.h"
 #include "webView2.h"
 
-#define VIDEO_MP4 1
-#define VIDEO_OGG 2
-#define VIDEO_WEBM 3
-
-#define AUDIO_MP3 11
-#define AUDIO_AAC 12
-#define AUDIO_OGG 13
-#define AUDIO_WAV 14
-
-#define IMAGE_JPG 21
-#define IMAGE_PNG 22
-#define IMAGE_WEBP 23
-#define IMAGE_GIF 24
-#define IMAGE_ICO 25
+#define NON_CLIENT_WIDTH SM_CXBORDER*2
+#define NON_CLIENT_HEIGHT SM_CYCAPTION+SM_CYMENU+SM_CYBORDER*2
 
 using namespace Microsoft::WRL;
 
 // Global variables
 
-// The name of the application
-static TCHAR szWindowClass[] = _T("wiewer");
-
-// The default text that appears in the title bar.
-static TCHAR szTitle_default[] = _T("wiewer");
+static TCHAR sg_szWindowClass[] = _T("wiewer");		// The name of the application
 
 HINSTANCE hInst;
 
@@ -67,7 +53,7 @@ int CALLBACK wWinMain(
 	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = NULL;
-	wcex.lpszClassName = szWindowClass;
+	wcex.lpszClassName = sg_szWindowClass;
 	wcex.hIconSm = LoadIcon(wcex.hInstance, IDI_APPLICATION);
 
 	if (!RegisterClassEx(&wcex))
@@ -83,61 +69,87 @@ int CALLBACK wWinMain(
 	// Store instance handle in our global variable
 	hInst = hInstance;
 
-	TCHAR* szTitle;									// The text that appears in the title bar.
-	TCHAR file_path_url[268] = TEXT("file:///");	// File path used in WebView2.
+	TCHAR* szTitle = NULL;					// The text that appears in the title bar.
+	TCHAR filePath[268] = TEXT("file:///");	// File path used in WebView2.
 
-	// Initial size of window
-	unsigned short int window_width;
-	unsigned short int window_height;
+	// 400 * 300 is default size.
+	unsigned short int windowWidth = 400 + NON_CLIENT_WIDTH;	// Initial width of window.
+	unsigned short int windowHeight = 300 + NON_CLIENT_HEIGHT;	// Initial height of window.
+	// XXX: I'm not sure the size of non-client area.
 
-	// TODO: Get type of file by file header.
-	unsigned short int file_type_num = 0;
+	bool lpCmdLineAvailable = true;	// Check if lpCmdLine is an available file path.
 
-	bool is_lpCmdLine_available = (wcslen(lpCmdLine) != 0 && _waccess_s(lpCmdLine, 4) != -1 && wcsrchr(lpCmdLine, L'\\') != NULL) ? true : false;	// Check if lpCmdLine is an available file path.
-	
-	if (is_lpCmdLine_available) {
-		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;	// Set title as file name.
+	/*
+	* If lpCmdLine:
+	* Not empty,
+	* Accessible,
+	* '\\' and '.' included,
+	*/
+	if (wcslen(lpCmdLine) != 0 && _waccess_s(lpCmdLine, 4) != -1 && wcsrchr(lpCmdLine, L'\\') != NULL && wcsrchr(lpCmdLine, L'.') != NULL) {
+		TCHAR fileType[255];																// File extension.
+		wcscpy_s(fileType, 255, wcsrchr(lpCmdLine, L'.') + 1);
+		for (unsigned char i = 0; i < 255; i++) if (fileType[i] > L'Z') fileType[i] -= 32;	// Capitalize fileType.
+		szTitle = wcsrchr(lpCmdLine, L'\\') + 1;;											// Set title as file name.
 
 		// XXX: Using '\\' in url seems to be OK.
-		wcscat_s(file_path_url, lpCmdLine);			// The format of file_path_url is "file:///C:\\xxx.jpg".
+		wcscat_s(filePath, lpCmdLine);														// The format of filePath is "file:///C:\\xxx.jpg".
 
-		// TODO: Make window's initial size fit the file.
+		// Check file type.
 
-		// NOTE: window_height includes height of title bar.
-		/*
-		* Standard title bar height is 32px.
-		* It may be affected by system scaling.
-		* My scaling is 150%, so my height is 21.3px.
-		*/
-		window_width = 300;
-		window_height = 300 + 21.3;
+		// Video
+		if (wcscmp(fileType, L"MP4") == 0) {}
+		else if (wcscmp(fileType, L"OGG") == 0) {}
+		else if (wcscmp(fileType, L"WEBM") == 0) {}
+
+		// Audio
+		else if (wcscmp(fileType, L"MP3") == 0 || wcscmp(fileType, L"AAC") == 0 || wcscmp(fileType, L"WAV") == 0) {
+			windowWidth = 400 + NON_CLIENT_WIDTH;
+			windowHeight = 400 + NON_CLIENT_HEIGHT;
+		}
+
+		// Image
+		else if (wcscmp(fileType, L"JPG") == 0 || wcscmp(fileType, L"JPEG") == 0) {
+			windowWidth = 300 + NON_CLIENT_WIDTH;
+			windowHeight = 300 + NON_CLIENT_HEIGHT;
+		}
+		else if (wcscmp(fileType, L"PNG") == 0) {}
+		else if (wcscmp(fileType, L"WEBP") == 0) {}
+		else if (wcscmp(fileType, L"GIF") == 0) {}
+		else if (wcscmp(fileType, L"ICO") == 0) {}
+
+		else
+		{
+			lpCmdLineAvailable = false;
+		}
 	}
 	else
 	{
-		szTitle = szTitle_default;
-		file_path_url[0] = L'\0';	// Clear array.
+		lpCmdLineAvailable = false;
+	}
 
-		// default size
-		window_width = 400;
-		window_height = 300;
+	// If lpCmdLine is not a supported file, set wiewer as default.
+	if (!lpCmdLineAvailable)
+	{
+		szTitle = (LPWSTR)TEXT("wiewer");	// Default title.
+		*filePath = NULL;					// Empty array.
 	}
 
 	// The parameters to CreateWindow explained:
-	// szWindowClass: the name of the application
+	// sg_szWindowClass: the name of the application
 	// szTitle: the text that appears in the title bar
 	// WS_OVERLAPPEDWINDOW: the type of window to create
 	// CW_USEDEFAULT, CW_USEDEFAULT: initial position (x, y)
-	// window_width, window_height: initial size (width, length)
+	// windowWidth, windowHeight: initial size (width, length)
 	// NULL: the parent of this window
 	// NULL: this application does not have a menu bar
 	// hInstance: the first parameter from WinMain
 	// NULL: not used in this application
 	HWND hWnd = CreateWindow(
-		szWindowClass,
+		sg_szWindowClass,
 		szTitle,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
-		window_width, window_height,
+		windowWidth, windowHeight,
 		NULL,
 		NULL,
 		hInstance,
@@ -165,11 +177,11 @@ int CALLBACK wWinMain(
 
 	HRESULT res = CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
 		Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-			[file_path_url, hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+			[filePath, hWnd](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
 				//MessageBoxA(hWnd, "createView", "", NULL);
 				// Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
 				env->CreateCoreWebView2Controller(hWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-					[file_path_url, hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+					[filePath, hWnd](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
 						if (controller != nullptr) {
 							webviewController = controller;
 							webviewController->get_CoreWebView2(&webviewWindow);
@@ -190,12 +202,12 @@ int CALLBACK wWinMain(
 
 						// Schedule an async task to navigate
 						HRESULT res;
-						if (file_path_url[0] == L'\0') {
+						if (*filePath == NULL) {
 							res = webviewWindow->NavigateToString(L"<html><head><style>*{margin:0;padding:0;text-align:center;user-select:none;}body{position:absolute;height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}</style></head><body><h1>Welcome to wiewer!</h1><br><font size='4'>wiewer is a simple media viewer based on WebView2.</font></body></html>");	// default page
 						}
 						else
 						{
-							res = webviewWindow->Navigate(file_path_url);
+							res = webviewWindow->Navigate(filePath);
 						}
 						std::string sres = std::to_string(res).c_str();
 
